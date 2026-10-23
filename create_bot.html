@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tạo Bot Mới</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">
+            <i class="fas fa-arrow-left"></i> Quay lại Dashboard
+        </a>
+
+        <div class="header">
+            <h1><i class="fas fa-plus-circle"></i> Tạo Bot Mới</h1>
+            <p>Thêm một bot mới vào hệ thống</p>
+        </div>
+
+        <div class="form-card">
+            <div class="tabs">
+                <button class="tab-button active" onclick="switchTab('qr')">
+                    <i class="fas fa-qrcode"></i> Quét QR
+                </button>
+                <button class="tab-button" onclick="switchTab('manual')">
+                    <i class="fas fa-keyboard"></i> Nhập Thủ Công
+                </button>
+            </div>
+
+            
+            <div id="qr-tab" class="tab-content active">
+                <div class="form-title">
+                    <i class="fas fa-qrcode"></i> Tạo bot bằng QR code
+                </div>
+                <div id="qr-session" style="display: none;">
+                    <div class="qr-display" id="qrCodeDisplay">
+                        <i class="fas fa-spinner fa-spin"></i> Đang tạo QR code...
+                    </div>
+                    <div class="qr-status">
+                        <p><i class="fas fa-mobile-alt"></i> Quét mã QR bằng Zalo để xác thực</p>
+                    </div>
+                    <div id="qrBotInfo" style="margin-top: 20px; padding: 15px; background: rgba(52, 152, 219, 0.1); border-radius: 6px;">
+                        <p style="margin: 0; color: #3498db; font-size: 14px;">
+                            <i class="fas fa-info-circle"></i> Vui lòng nhập tên bot và prefix trước
+                        </p>
+                    </div>
+                </div>
+                
+                <form id="qrBotForm" style="display: flex; flex-direction: column; gap: 15px;">
+                    <div class="form-group">
+                        <label for="qr_prefix">Command Prefix</label>
+                        <input type="text" id="qr_prefix" name="qr_prefix" 
+                               placeholder="?" maxlength="3" value="?">
+                        <small>Ký tự kích hoạt lệnh (mặc định: ?)</small>
+                    </div>
+
+                    <div id="qrBotInfo" style="padding: 15px; background: rgba(52, 152, 219, 0.1); border-radius: 6px; margin-bottom: 10px;">
+                        <p style="margin: 0; color: #3498db; font-size: 14px;">
+                            <i class="fas fa-info-circle"></i> Tên bot sẽ tự động lấy từ tài khoản Zalo của bạn khi đăng nhập
+                        </p>
+                    </div>
+
+                    <div class="form-actions">
+                        <a href="/" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Hủy
+                        </a>
+                        <button type="button" class="btn btn-primary" onclick="generateQRCode()">
+                            <i class="fas fa-qrcode"></i> Tạo QR Code
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            
+            <div id="manual-tab" class="tab-content">
+                <div class="form-title">
+                    <i class="fas fa-edit"></i> Nhập thông tin bot
+                </div>
+                <form id="manualBotForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="username">Tên Bot <span style="color: red;">*</span></label>
+                            <input type="text" id="username" name="username" 
+                                   placeholder="Ví dụ: MyBot" required>
+                            <small>Tên hiển thị cho bot của bạn</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="prefix">Command Prefix</label>
+                            <input type="text" id="prefix" name="prefix" 
+                                   placeholder="?" maxlength="3" value="?">
+                            <small>Ký tự kích hoạt lệnh (mặc định: ?)</small>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="zpw_sek">Session Cookie (zpw_sek) <span style="color: red;">*</span></label>
+                        <textarea id="zpw_sek" name="zpw_sek" rows="4"
+                                  placeholder="Dán session cookie của bạn ở đây" required></textarea>
+                        <small>Bắt buộc để xác thực bot</small>
+                    </div>
+
+                    <div class="form-actions">
+                        <a href="/" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Hủy
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Tạo Bot
+                        </button>
+                    </div>
+                </form>
+
+                
+                <div class="info-section">
+                    <h3><i class="fas fa-info-circle"></i> Cách lấy Session Cookie</h3>
+                    <ol>
+                        <li>Mở Zalo Web (web.zalo.me)</li>
+                        <li>Nhấn F12 để mở Developer Tools</li>
+                        <li>Đi tới Application > Cookies</li>
+                        <li>Tìm cookie <code>zpw_sek</code></li>
+                        <li>Sao chép giá trị và dán vào trên</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        let currentQRSessionId = null;
+        let currentQRData = null;
+
+        function switchTab(tab) {
+            $('.tab-content').removeClass('active').hide();
+            $('.tab-button').removeClass('active');
+
+            if (tab === 'qr') {
+                $('#qr-tab').addClass('active').show();
+                $('[onclick="switchTab(\'qr\')"]').addClass('active');
+                // Reset QR session display
+                $('#qr-session').hide();
+                $('#qrBotForm').show();
+            } else if (tab === 'manual') {
+                $('#manual-tab').addClass('active').show();
+                $('[onclick="switchTab(\'manual\')"]').addClass('active');
+            }
+        }
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function generateQRCode() {
+            const $btn = $('[onclick="generateQRCode()"]');
+            const originalText = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Đang tạo...');
+            $('#qrCodeDisplay').html('<i class="fas fa-spinner fa-spin"></i> Đang tạo QR code...');
+            $('#qrBotForm').hide();
+            $('#qr-session').show();
+
+            $.ajax({
+                url: '/gui/api/qr/generate',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({}),
+                success: function(response) {
+                    if (response.success && response.session_id) {
+                        currentQRSessionId = response.session_id;
+                        pollQRStatus(response.session_id, 0);
+                    } else {
+                        alert('Lỗi: Không thể tạo QR code');
+                        $btn.prop('disabled', false).html(originalText);
+                        $('#qrBotForm').show();
+                        $('#qr-session').hide();
+                    }
+                },
+                error: function(xhr) {
+                    alert('Lỗi: Không thể tạo QR code');
+                    $btn.prop('disabled', false).html(originalText);
+                    $('#qrBotForm').show();
+                    $('#qr-session').hide();
+                }
+            });
+        }
+
+        function pollQRStatus(sessionId, attempts) {
+            if (attempts > 120) {
+                alert('Timeout: QR code session hết hạn');
+                resetQRSession();
+                return;
+            }
+
+            setTimeout(function() {
+                $.ajax({
+                    url: '/gui/api/qr/status/' + sessionId,
+                    method: 'GET',
+                    success: function(response) {
+                        if (!response.success) { pollQRStatus(sessionId, attempts + 1); return; }
+                        var status = response.status;
+
+                        // Hiển thị ảnh QR ngay khi có
+                        if (response.qr_code && $('#qrCodeDisplay img').length === 0) {
+                            $('#qrCodeDisplay').html('<img src="data:image/png;base64,' + response.qr_code + '" alt="QR Code" style="max-width:220px;">');
+                        }
+
+                        if (status === 'confirmed') {
+                            currentQRData = response.qr_data;
+                            submitQRBot(currentQRData);
+                        } else if (status === 'failed') {
+                            alert('Lỗi: ' + (response.message || 'Xác thực thất bại'));
+                            resetQRSession();
+                        } else if (status === 'waiting_scan') {
+                            $('#qrCodeDisplay .qr-hint').remove();
+                            $('#qrCodeDisplay').append('<p class="qr-hint" style="margin-top:8px;font-size:13px;">📱 Mở Zalo → quét mã QR</p>');
+                            pollQRStatus(sessionId, attempts + 1);
+                        } else if (status === 'waiting_confirm') {
+                            $('#qrCodeDisplay .qr-hint').remove();
+                            $('#qrCodeDisplay').append('<p class="qr-hint" style="margin-top:8px;font-size:13px;">✅ Đã quét – xác nhận trên điện thoại...</p>');
+                            pollQRStatus(sessionId, attempts + 1);
+                        } else {
+                            pollQRStatus(sessionId, attempts + 1);
+                        }
+                    },
+                    error: function() { pollQRStatus(sessionId, attempts + 1); }
+                });
+            }, 2000);
+        }
+
+        function submitQRBot(qrData) {
+            const $btn = $('[onclick="generateQRCode()"]');
+            
+            console.log('QR Data received:', qrData);
+            
+            // Extract zpw_sek from qrData
+            let zpwSekValue = '';
+            let imeiValue = generateUUID();
+            
+            if (qrData) {
+                if (qrData.cookie && qrData.cookie.zpw_sek) {
+                    zpwSekValue = qrData.cookie.zpw_sek;
+                } else if (qrData.zpw_sek) {
+                    zpwSekValue = qrData.zpw_sek;
+                }
+                
+                if (qrData.imei) {
+                    imeiValue = qrData.imei;
+                }
+            }
+            
+            if (!zpwSekValue) {
+                alert('Lỗi: Không thể lấy session cookie từ QR code. Vui lòng thử lại.');
+                console.error('zpw_sek missing from qrData:', qrData);
+                resetQRSession();
+                return;
+            }
+            
+            const botData = {
+                imei: imeiValue,
+                prefix: $('#qr_prefix').val() || '?',
+                zpw_sek: zpwSekValue,
+                is_main_bot: false,
+                qr_verified: true
+            };
+
+            console.log('Creating bot with data:', botData);
+
+            $.ajax({
+                url: '/gui/api/bot/from-qr',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(botData),
+                success: function(response) {
+                    if (response.success) {
+                        alert('Bot đã được tạo thành công bằng QR!');
+                        window.location.href = '/';
+                    } else {
+                        alert('Lỗi: ' + (response.message || 'Không thể tạo bot'));
+                        resetQRSession();
+                    }
+                },
+                error: function(xhr) {
+                    try {
+                        const err = JSON.parse(xhr.responseText || '{}');
+                        alert('Lỗi: ' + (err.message || 'Không thể tạo bot'));
+                    } catch (e) {
+                        alert('Lỗi: Không thể tạo bot (Status: ' + xhr.status + ')');
+                    }
+                    resetQRSession();
+                }
+            });
+        }
+
+        function resetQRSession() {
+            currentQRSessionId = null;
+            currentQRData = null;
+            $('#qr-session').hide();
+            $('#qrBotForm').show();
+            $('#qrCodeDisplay').html('<i class="fas fa-qrcode"></i> Quét QR để bắt đầu');
+        }
+
+        $(document).ready(function() {
+            // Manual entry form submission
+            $('#manualBotForm').on('submit', submitManualBot);
+        });
+
+        function submitManualBot(e) {
+            e.preventDefault();
+
+            const zpwSek = $('#zpw_sek').val().trim();
+            
+            if (!zpwSek) {
+                alert('Vui lòng nhập session cookie');
+                return;
+            }
+
+            const $btn = $('button[type="submit"]');
+            const originalText = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Đang tạo...');
+
+            const botData = {
+                username: $('#username').val().trim() || 'New Bot',
+                imei: generateUUID(),
+                prefix: $('#prefix').val() || '?',
+                zpw_sek: zpwSek,
+                is_main_bot: false
+            };
+
+            $.ajax({
+                url: '/gui/api/bot/from-qr',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(botData),
+                success: function(response) {
+                    if (response.success) {
+                        alert('Bot đã được tạo thành công!');
+                        window.location.href = '/';
+                    } else {
+                        alert('Lỗi: ' + (response.message || 'Không thể tạo bot'));
+                        $btn.prop('disabled', false).html(originalText);
+                    }
+                },
+                error: function(xhr) {
+                    try {
+                        const err = JSON.parse(xhr.responseText || '{}');
+                        alert('Lỗi: ' + (err.message || 'Không thể tạo bot'));
+                    } catch (e) {
+                        alert('Lỗi: Không thể tạo bot (Status: ' + xhr.status + ')');
+                    }
+                    $btn.prop('disabled', false).html(originalText);
+                }
+            });
+        }
+    </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+</body>
+</html>
